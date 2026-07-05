@@ -354,7 +354,66 @@ function buildSwipeGalleryHtml(p) {
       itemsHtml += '<div class="mobile-swipe-item"><img src="' + bustCache(m.thumb) + '" onerror="this.src=\'https://via.placeholder.com/400/0e0e2c/c9a84c?text=No+Image\'"></div>';
     }
   }
-  return '<div class="mobile-swipe-track">' + itemsHtml + '</div>';
+  var safeId = 'swipe-' + p.code.replace(/[^a-zA-Z0-9_-]/g, '_');
+  return '<div class="mobile-swipe-track" id="' + safeId + '" data-count="' + allMedia.length + '">' + itemsHtml + '</div>';
+}
+
+var _slideshowIntervals = {};
+var _slideshowObserver = null;
+var _slideshowStopped = {};
+
+function stopSlideshow(trackId) {
+  if (_slideshowIntervals[trackId]) {
+    clearInterval(_slideshowIntervals[trackId]);
+    delete _slideshowIntervals[trackId];
+  }
+}
+
+function startSlideshow(track) {
+  var trackId = track.id;
+  if (_slideshowIntervals[trackId] || _slideshowStopped[trackId]) return;
+  var count = parseInt(track.getAttribute('data-count'), 10) || 1;
+  if (count <= 1) return;
+
+  _slideshowIntervals[trackId] = setInterval(function() {
+    var itemWidth = track.clientWidth;
+    var maxScroll = track.scrollWidth - itemWidth;
+    var nextScroll = track.scrollLeft + itemWidth;
+    if (nextScroll > maxScroll + 5) { nextScroll = 0; }
+    track.scrollTo({ left: nextScroll, behavior: 'smooth' });
+  }, 2500);
+}
+
+function setupMobileSlideshowObserver() {
+  // Reset all state from any previous render
+  Object.keys(_slideshowIntervals).forEach(function(id) { clearInterval(_slideshowIntervals[id]); });
+  _slideshowIntervals = {};
+  _slideshowStopped = {};
+  if (_slideshowObserver) { _slideshowObserver.disconnect(); }
+
+  var tracks = document.querySelectorAll('.mobile-swipe-track');
+  tracks.forEach(function(track) {
+    track.addEventListener('touchstart', function() {
+      _slideshowStopped[track.id] = true;
+      stopSlideshow(track.id);
+    }, { passive: true });
+  });
+
+  _slideshowObserver = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      var track = entry.target.querySelector('.mobile-swipe-track');
+      if (!track) return;
+      if (entry.isIntersecting) {
+        startSlideshow(track);
+      } else {
+        stopSlideshow(track.id);
+      }
+    });
+  }, { threshold: 0.6 });
+
+  document.querySelectorAll('.mobile-product-card').forEach(function(card) {
+    _slideshowObserver.observe(card);
+  });
 }
 
 function buildVideoHtml(media) {
@@ -540,9 +599,9 @@ function updateCartUI() {
         '<div class="cart-item-media">' +
           '<img src="' + imgUrl + '" onerror="this.src=\'https://via.placeholder.com/120/0e0e2c/c9a84c?text=No+Image\'">' +
           '<div class="qty-controls">' +
-            '<button class="qty-btn" onclick="changeQty(' + idx + ', ' + item.min + ')">+</button>' +
+            '<button class="qty-btn" onclick="changeQty(' + idx + ', 1000)">+</button>' +
             '<span class="qty-val">' + fmt(item.qty) + '</span>' +
-            '<button class="qty-btn" onclick="changeQty(' + idx + ', -' + item.min + ')">−</button>' +
+            '<button class="qty-btn" onclick="changeQty(' + idx + ', -1000)">−</button>' +
           '</div>' +
         '</div>' +
         '<div class="cart-item-info">' +
@@ -617,6 +676,7 @@ function openModal(code) {
       '</div>';
     });
     document.getElementById('modalMainContent').innerHTML = html;
+    setupMobileSlideshowObserver();
 
     setTimeout(function() {
       var target = document.querySelector('[data-modal-code="' + code.replace(/"/g, '&quot;') + '"]');
@@ -694,6 +754,9 @@ function navigateModal(dir) {
 
 function closeModal() {
   document.getElementById('productModal').classList.remove('open');
+  Object.keys(_slideshowIntervals).forEach(function(id) { clearInterval(_slideshowIntervals[id]); });
+  _slideshowIntervals = {};
+  if (_slideshowObserver) { _slideshowObserver.disconnect(); _slideshowObserver = null; }
   if (history.state && history.state.overlay === 'modal') {
     history.back();
   }
