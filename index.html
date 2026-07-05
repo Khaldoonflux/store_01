@@ -361,6 +361,7 @@ function buildSwipeGalleryHtml(p) {
 var _slideshowIntervals = {};
 var _slideshowObserver = null;
 var _slideshowStopped = {};
+var _slideshowIndex = {};
 
 function stopSlideshow(trackId) {
   if (_slideshowIntervals[trackId]) {
@@ -372,15 +373,15 @@ function stopSlideshow(trackId) {
 function startSlideshow(track) {
   var trackId = track.id;
   if (_slideshowIntervals[trackId] || _slideshowStopped[trackId]) return;
-  var count = parseInt(track.getAttribute('data-count'), 10) || 1;
+  var items = track.querySelectorAll('.mobile-swipe-item');
+  var count = items.length;
   if (count <= 1) return;
 
+  if (_slideshowIndex[trackId] === undefined) _slideshowIndex[trackId] = 0;
+
   _slideshowIntervals[trackId] = setInterval(function() {
-    var itemWidth = track.clientWidth;
-    var maxScroll = track.scrollWidth - itemWidth;
-    var nextScroll = track.scrollLeft + itemWidth;
-    if (nextScroll > maxScroll + 5) { nextScroll = 0; }
-    track.scrollTo({ left: nextScroll, behavior: 'smooth' });
+    _slideshowIndex[trackId] = (_slideshowIndex[trackId] + 1) % count;
+    items[_slideshowIndex[trackId]].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
   }, 2500);
 }
 
@@ -389,6 +390,7 @@ function setupMobileSlideshowObserver() {
   Object.keys(_slideshowIntervals).forEach(function(id) { clearInterval(_slideshowIntervals[id]); });
   _slideshowIntervals = {};
   _slideshowStopped = {};
+  _slideshowIndex = {};
   if (_slideshowObserver) { _slideshowObserver.disconnect(); }
 
   var tracks = document.querySelectorAll('.mobile-swipe-track');
