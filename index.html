@@ -345,76 +345,163 @@ function buildSwipeGalleryHtml(p) {
     .filter(function(m) { return m && m.thumb && /^https?:\/\/.+/i.test(m.thumb.trim()); });
   if (allMedia.length === 0) allMedia = [{ type: 'image', thumb: p.img, embedUrl: null }];
 
+  var count = allMedia.length;
+  var renderList = allMedia;
+  if (count > 1) {
+    // Clone last-at-front and first-at-back to allow seamless infinite looping in both directions.
+    renderList = [allMedia[count - 1]].concat(allMedia, [allMedia[0]]);
+  }
+
   var itemsHtml = '';
-  for (var i = 0; i < allMedia.length; i++) {
-    var m = allMedia[i];
+  for (var i = 0; i < renderList.length; i++) {
+    var m = renderList[i];
     if (m.type === 'video' && m.embedUrl) {
-      itemsHtml += '<div class="mobile-swipe-item">' + buildVideoHtml(m) + '</div>';
+      itemsHtml += '<div class="mobile-swipe-item" data-type="video">' +
+        '<div class="modal-video-wrap"><video class="modal-main-video" src="' + m.embedUrl + '" poster="' + m.thumb + '" muted playsinline webkit-playsinline preload="auto"></video></div>' +
+      '</div>';
     } else {
-      itemsHtml += '<div class="mobile-swipe-item"><img src="' + bustCache(m.thumb) + '" onerror="this.src=\'https://via.placeholder.com/400/0e0e2c/c9a84c?text=No+Image\'"></div>';
+      itemsHtml += '<div class="mobile-swipe-item" data-type="image"><img src="' + bustCache(m.thumb) + '" onerror="this.src=\'https://via.placeholder.com/400/0e0e2c/c9a84c?text=No+Image\'"></div>';
     }
   }
   var safeId = 'swipe-' + p.code.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return '<div class="mobile-swipe-track" id="' + safeId + '" data-count="' + allMedia.length + '">' + itemsHtml + '</div>';
+  return '<div class="mobile-swipe-track" id="' + safeId + '" data-count="' + count + '">' + itemsHtml + '</div>';
 }
 
-var _slideshowIntervals = {};
-var _slideshowObserver = null;
-var _slideshowStopped = {};
-var _slideshowIndex = {};
+var _trackTimers = {};   // trackId -> { timeoutId, videoEl, handler }
+var _trackObserver = null;
+var _trackScrollBound = {}; // trackId -> true once scroll listener attached
 
-function stopSlideshow(trackId) {
-  if (_slideshowIntervals[trackId]) {
-    clearInterval(_slideshowIntervals[trackId]);
-    delete _slideshowIntervals[trackId];
+function clearTrackTimer(trackId) {
+  var t = _trackTimers[trackId];
+  if (t) {
+    if (t.timeoutId) clearTimeout(t.timeoutId);
+    if (t.videoEl && t.handler) t.videoEl.removeEventListener('ended', t.handler);
+    delete _trackTimers[trackId];
   }
 }
 
-function startSlideshow(track) {
-  var trackId = track.id;
-  if (_slideshowIntervals[trackId] || _slideshowStopped[trackId]) return;
+function nearestItemIndex(track, items) {
+  var trackRect = track.getBoundingClientRect();
+  var trackCenter = trackRect.left + trackRect.width / 2;
+  var bestIdx = 0, bestDist = Infinity;
+  for (var i = 0; i < items.length; i++) {
+    var r = items[i].getBoundingClientRect();
+    var dist = Math.abs((r.left + r.width / 2) - trackCenter);
+    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+  }
+  return bestIdx;
+}
+
+function goToItem(track, items, pos, instant) {
+  items[pos].scrollIntoView({ behavior: instant ? 'instant' : 'smooth', inline: 'start', block: 'nearest' });
+}
+
+function scheduleFromPosition(track, items, pos) {
+  clearTrackTimer(track.id);
+  var current = items[pos];
+  if (!current) return;
+
+  // Pause any other video in this track so only the current slide plays.
+  items.forEach(function(it) {
+    if (it === current) return;
+    var v = it.querySelector('video');
+    if (v && !v.paused) v.pause();
+  });
+
+  var type = current.getAttribute('data-type');
+  if (type === 'video') {
+    var videoEl = current.querySelector('video');
+    if (videoEl) {
+      videoEl.currentTime = 0;
+      var advanced = false;
+      var handler = function() {
+        if (advanced) return;
+        advanced = true;
+        advanceTrack(track, items, pos);
+      };
+      var timeoutId = setTimeout(handler, 15000); // safety net if 'ended' never fires
+      videoEl.addEventListener('ended', function() { clearTimeout(timeoutId); handler(); }, { once: true });
+      var playPromise = videoEl.play();
+      if (playPromise && playPromise.catch) playPromise.catch(function() {}); // ignore autoplay-block rejections
+      _trackTimers[track.id] = { timeoutId: timeoutId, videoEl: videoEl, handler: handler };
+      return;
+    }
+  }
+
+  var timeoutId2 = setTimeout(function() { advanceTrack(track, items, pos); }, 2500);
+  _trackTimers[track.id] = { timeoutId: timeoutId2 };
+}
+
+function advanceTrack(track, items, fromPos) {
+  var nextPos = fromPos + 1;
+  if (nextPos >= items.length) nextPos = items.length - 1;
+  goToItem(track, items, nextPos, false);
+  // settleTrack() will run via the scroll listener once the smooth-scroll finishes.
+}
+
+function settleTrack(track) {
   var items = track.querySelectorAll('.mobile-swipe-item');
-  var count = items.length;
-  if (count <= 1) return;
+  var count = parseInt(track.getAttribute('data-count'), 10) || 1;
+  var total = items.length;
+  var pos = nearestItemIndex(track, items);
 
-  if (_slideshowIndex[trackId] === undefined) _slideshowIndex[trackId] = 0;
+  if (count > 1) {
+    if (pos === 0) {
+      // Landed on the cloned-last item (wrapped backward past the first) — jump to the real last.
+      pos = count;
+      goToItem(track, items, pos, true);
+    } else if (pos === total - 1) {
+      // Landed on the cloned-first item (wrapped forward past the last) — jump to the real first.
+      pos = 1;
+      goToItem(track, items, pos, true);
+    }
+  }
 
-  _slideshowIntervals[trackId] = setInterval(function() {
-    _slideshowIndex[trackId] = (_slideshowIndex[trackId] + 1) % count;
-    items[_slideshowIndex[trackId]].scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
-  }, 2500);
+  scheduleFromPosition(track, items, pos);
+}
+
+function bindTrackScroll(track) {
+  if (_trackScrollBound[track.id]) return;
+  _trackScrollBound[track.id] = true;
+  var debounceId = null;
+  track.addEventListener('scroll', function() {
+    clearTimeout(debounceId);
+    debounceId = setTimeout(function() { settleTrack(track); }, 180);
+  }, { passive: true });
 }
 
 function setupMobileSlideshowObserver() {
-  // Reset all state from any previous render
-  Object.keys(_slideshowIntervals).forEach(function(id) { clearInterval(_slideshowIntervals[id]); });
-  _slideshowIntervals = {};
-  _slideshowStopped = {};
-  _slideshowIndex = {};
-  if (_slideshowObserver) { _slideshowObserver.disconnect(); }
+  Object.keys(_trackTimers).forEach(function(id) { clearTrackTimer(id); });
+  _trackTimers = {};
+  _trackScrollBound = {};
+  if (_trackObserver) { _trackObserver.disconnect(); }
 
   var tracks = document.querySelectorAll('.mobile-swipe-track');
   tracks.forEach(function(track) {
-    track.addEventListener('touchstart', function() {
-      _slideshowStopped[track.id] = true;
-      stopSlideshow(track.id);
-    }, { passive: true });
+    var count = parseInt(track.getAttribute('data-count'), 10) || 1;
+    if (count > 1) {
+      var items = track.querySelectorAll('.mobile-swipe-item');
+      goToItem(track, items, 1, true); // start on the real first item (slot 1, after the cloned-last)
+    }
+    bindTrackScroll(track);
   });
 
-  _slideshowObserver = new IntersectionObserver(function(entries) {
+  _trackObserver = new IntersectionObserver(function(entries) {
     entries.forEach(function(entry) {
       var track = entry.target.querySelector('.mobile-swipe-track');
       if (!track) return;
       if (entry.isIntersecting) {
-        startSlideshow(track);
+        settleTrack(track);
       } else {
-        stopSlideshow(track.id);
+        clearTrackTimer(track.id);
+        var v = track.querySelector('video');
+        if (v && !v.paused) v.pause();
       }
     });
   }, { threshold: 0.6 });
 
   document.querySelectorAll('.mobile-product-card').forEach(function(card) {
-    _slideshowObserver.observe(card);
+    _trackObserver.observe(card);
   });
 }
 
@@ -756,9 +843,10 @@ function navigateModal(dir) {
 
 function closeModal() {
   document.getElementById('productModal').classList.remove('open');
-  Object.keys(_slideshowIntervals).forEach(function(id) { clearInterval(_slideshowIntervals[id]); });
-  _slideshowIntervals = {};
-  if (_slideshowObserver) { _slideshowObserver.disconnect(); _slideshowObserver = null; }
+  Object.keys(_trackTimers).forEach(function(id) { clearTrackTimer(id); });
+  _trackTimers = {};
+  document.querySelectorAll('.mobile-swipe-track video').forEach(function(v) { if (!v.paused) v.pause(); });
+  if (_trackObserver) { _trackObserver.disconnect(); _trackObserver = null; }
   if (history.state && history.state.overlay === 'modal') {
     history.back();
   }
