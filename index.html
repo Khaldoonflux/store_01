@@ -367,9 +367,11 @@ function buildSwipeGalleryHtml(p) {
   return '<div class="mobile-swipe-track" id="' + safeId + '" data-count="' + count + '">' + itemsHtml + '</div>';
 }
 
-var _trackTimers = {};   // trackId -> { timeoutId, videoEl, handler }
+var _trackTimers = {};      // trackId -> { timeoutId, videoEl, handler }
 var _trackObserver = null;
-var _trackScrollBound = {}; // trackId -> true once scroll listener attached
+var _trackPos = {};         // trackId -> current slot index (authoritative, we always know it)
+var _trackInitialized = {}; // trackId -> true once lazily positioned to its real first slide
+var _trackSwiping = {};     // trackId -> true while the user's finger is actively on it
 
 function clearTrackTimer(trackId) {
   var t = _trackTimers[trackId];
@@ -392,12 +394,13 @@ function nearestItemIndex(track, items) {
   return bestIdx;
 }
 
-function goToItem(track, items, pos, instant) {
+function goToItem(items, pos, instant) {
   items[pos].scrollIntoView({ behavior: instant ? 'instant' : 'smooth', inline: 'start', block: 'nearest' });
 }
 
 function scheduleFromPosition(track, items, pos) {
   clearTrackTimer(track.id);
+  _trackPos[track.id] = pos;
   var current = items[pos];
   if (!current) return;
 
@@ -433,65 +436,82 @@ function scheduleFromPosition(track, items, pos) {
 }
 
 function advanceTrack(track, items, fromPos) {
-  var nextPos = fromPos + 1;
-  if (nextPos >= items.length) nextPos = items.length - 1;
-  goToItem(track, items, nextPos, false);
-  // settleTrack() will run via the scroll listener once the smooth-scroll finishes.
-}
-
-function settleTrack(track) {
-  var items = track.querySelectorAll('.mobile-swipe-item');
   var count = parseInt(track.getAttribute('data-count'), 10) || 1;
   var total = items.length;
-  var pos = nearestItemIndex(track, items);
+  var nextPos = fromPos + 1;
+  if (nextPos >= total) nextPos = total - 1;
+  goToItem(items, nextPos, false);
 
-  if (count > 1) {
-    if (pos === 0) {
-      // Landed on the cloned-last item (wrapped backward past the first) — jump to the real last.
-      pos = count;
-      goToItem(track, items, pos, true);
-    } else if (pos === total - 1) {
-      // Landed on the cloned-first item (wrapped forward past the last) — jump to the real first.
-      pos = 1;
-      goToItem(track, items, pos, true);
-    }
+  if (count > 1 && nextPos === total - 1) {
+    // Landed on the cloned-first slide; let the smooth scroll finish, then snap invisibly to the real first slide.
+    setTimeout(function() {
+      goToItem(items, 1, true);
+      scheduleFromPosition(track, items, 1);
+    }, 450);
+  } else {
+    scheduleFromPosition(track, items, nextPos);
   }
-
-  scheduleFromPosition(track, items, pos);
 }
 
-function bindTrackScroll(track) {
-  if (_trackScrollBound[track.id]) return;
-  _trackScrollBound[track.id] = true;
-  var debounceId = null;
-  track.addEventListener('scroll', function() {
-    clearTimeout(debounceId);
-    debounceId = setTimeout(function() { settleTrack(track); }, 180);
+function initTrackIfNeeded(track, items) {
+  if (_trackInitialized[track.id]) return;
+  _trackInitialized[track.id] = true;
+  var count = parseInt(track.getAttribute('data-count'), 10) || 1;
+  if (count > 1) {
+    goToItem(items, 1, true); // jump to the real first slide (past the cloned-last at slot 0)
+    _trackPos[track.id] = 1;
+  } else {
+    _trackPos[track.id] = 0;
+  }
+}
+
+function bindTrackTouch(track) {
+  if (track._touchBound) return;
+  track._touchBound = true;
+
+  track.addEventListener('touchstart', function() {
+    _trackSwiping[track.id] = true;
+    clearTrackTimer(track.id); // pause auto-advance while the user's finger is on the gallery
+  }, { passive: true });
+
+  track.addEventListener('touchend', function() {
+    setTimeout(function() {
+      _trackSwiping[track.id] = false;
+      var itemsNow = track.querySelectorAll('.mobile-swipe-item');
+      var count = parseInt(track.getAttribute('data-count'), 10) || 1;
+      var pos = nearestItemIndex(track, itemsNow);
+      if (count > 1) {
+        if (pos === 0) { pos = count; goToItem(itemsNow, pos, true); }
+        else if (pos === itemsNow.length - 1) { pos = 1; goToItem(itemsNow, pos, true); }
+      }
+      scheduleFromPosition(track, itemsNow, pos);
+    }, 350); // let scroll-snap momentum finish before measuring where the user landed
   }, { passive: true });
 }
 
 function setupMobileSlideshowObserver() {
   Object.keys(_trackTimers).forEach(function(id) { clearTrackTimer(id); });
   _trackTimers = {};
-  _trackScrollBound = {};
+  _trackPos = {};
+  _trackInitialized = {};
+  _trackSwiping = {};
   if (_trackObserver) { _trackObserver.disconnect(); }
 
-  var tracks = document.querySelectorAll('.mobile-swipe-track');
-  tracks.forEach(function(track) {
-    var count = parseInt(track.getAttribute('data-count'), 10) || 1;
-    if (count > 1) {
-      var items = track.querySelectorAll('.mobile-swipe-item');
-      goToItem(track, items, 1, true); // start on the real first item (slot 1, after the cloned-last)
-    }
-    bindTrackScroll(track);
+  document.querySelectorAll('.mobile-swipe-track').forEach(function(track) {
+    bindTrackTouch(track);
   });
 
   _trackObserver = new IntersectionObserver(function(entries) {
     entries.forEach(function(entry) {
       var track = entry.target.querySelector('.mobile-swipe-track');
       if (!track) return;
+      var items = track.querySelectorAll('.mobile-swipe-item');
       if (entry.isIntersecting) {
-        settleTrack(track);
+        initTrackIfNeeded(track, items); // only positions it the first time it's actually seen
+        if (!_trackSwiping[track.id]) {
+          var pos = _trackPos[track.id] !== undefined ? _trackPos[track.id] : 0;
+          scheduleFromPosition(track, items, pos);
+        }
       } else {
         clearTrackTimer(track.id);
         var v = track.querySelector('video');
