@@ -24,17 +24,14 @@
   body::before { content: ''; position: fixed; inset: 0; background: radial-gradient(ellipse 80% 50% at 20% 10%, rgba(201,168,76,0.06) 0%, transparent 60%), radial-gradient(ellipse 60% 40% at 80% 80%, rgba(80,60,180,0.08) 0%, transparent 60%); pointer-events: none; z-index: 0; }
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: var(--gold-dim); border-radius: 4px; }
   #header { position: sticky; top: 0; z-index: 100; background: var(--glass); backdrop-filter: blur(20px); border-bottom: 1px solid var(--card-border); }
-  .header-inner { max-width: 1280px; margin: 0 auto; padding: 0 20px; height: 64px; display: flex; align-items: center; gap: 16px; }
-  .logo-mark { width: 40px; height: 40px; border-radius: 12px; background: linear-gradient(135deg, var(--gold), #a07830); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; color: #07071a; flex-shrink: 0; box-shadow: 0 0 16px var(--gold-glow); }
-  .logo-text { flex-shrink: 0; } .logo-text h1 { font-size: 17px; font-weight: 700; line-height: 1.2; } .logo-text p { font-size: 11px; color: var(--text-sub); }
-  .header-search { flex: 1; max-width: 400px; margin-right: auto; }
-  .search-input { width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--card-border); border-radius: 12px; padding: 9px 16px; color: var(--text); font-family: 'Almarai', sans-serif; font-size: 14px; outline: none; transition: border-color 0.2s, background 0.2s; }
-  .search-input::placeholder { color: var(--text-dim); } .search-input:focus { border-color: var(--gold); background: rgba(255,255,255,0.08); }
-  .cart-btn { position: relative; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--gold); background: var(--gold-dim); color: var(--gold); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, box-shadow 0.2s; flex-shrink: 0; }
+  .header-inner { max-width: 1280px; margin: 0 auto; padding: 8px 20px; height: auto; display: flex; align-items: center; gap: 16px; }
+  .logo-group { display: flex; flex-direction: row; align-items: center; gap: 16px; flex-shrink: 0; }
+  .logo-mark { width: 120px; height: auto; object-fit: contain; flex-shrink: 0; }
+  .logo-text { flex-shrink: 0; } .logo-text p { font-size: 26px; font-weight: 700; color: var(--text); }
+  .cart-btn { position: relative; width: 42px; height: 42px; border-radius: 12px; border: 1px solid var(--gold); background: var(--gold-dim); color: var(--gold); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.2s, box-shadow 0.2s; flex-shrink: 0; margin-right: auto; }
   .cart-btn:hover { background: rgba(201,168,76,0.25); box-shadow: 0 0 16px var(--gold-glow); } .cart-btn svg { width: 20px; height: 20px; }
   .cart-badge { position: absolute; top: -6px; left: -6px; background: var(--gold); color: #07071a; font-size: 10px; font-weight: 700; width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .cart-badge.hidden { display: none; }
-  .mobile-search { display: none; padding: 0 16px 12px; } .mobile-search .search-input { font-size: 15px; }
   #main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; padding: 24px 20px 60px; }
   #categories { display: flex; flex-wrap: nowrap; gap: 8px; overflow-x: auto; padding-bottom: 4px; margin-bottom: 24px; scrollbar-width: none; } #categories::-webkit-scrollbar { display: none; }
   .cat-btn { flex-shrink: 0; padding: 7px 18px; border-radius: 40px; border: 1px solid var(--card-border); background: var(--card); color: var(--text-sub); font-family: 'Almarai', sans-serif; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
@@ -145,9 +142,10 @@
   .modal-min strong { color: var(--gold-light); }
   .modal-in-cart { width: 100%; padding: 13px; border-radius: 14px; border: 1px solid var(--success); background: rgba(62,207,142,0.1); color: var(--success); font-family: 'Almarai', sans-serif; font-size: 15px; font-weight: 800; text-align: center; }
   @media (max-width: 640px) {
-    .header-search { display: none; }
-    .mobile-search { display: block; }
-    .header-inner { height: 58px; }
+    .header-inner { height: auto; }
+    .logo-group { flex-direction: column; align-items: flex-start; gap: 4px; }
+    .logo-mark { width: 80px; height: auto; }
+    .logo-text p { font-size: 17px; }
     #products { grid-template-columns: 1fr 1fr; gap: 12px; }
     .product-card .card-desc { display: none; }
     .product-card .card-min { display: none; }
@@ -175,10 +173,6 @@
   }
   @media (min-width: 641px) {
     #categories { flex-wrap: wrap; overflow-x: visible; }
-    .logo-mark { font-size: 20px; }
-    .logo-text h1 { font-size: 19px; }
-    .logo-text p { font-size: 13px; }
-    .search-input { font-size: 16px; }
     .cart-badge { font-size: 12px; }
     .cat-btn { font-size: 15px; }
     .card-name { font-size: 17px; }
@@ -218,15 +212,15 @@
 
 <header id="header">
   <div class="header-inner">
-    <div class="logo-mark">ت</div>
-    <div class="logo-text"><h1>متجر التغليف</h1><p>للطباعة والتغليف · بغداد</p></div>
-    <div class="header-search"><input id="searchDesktop" class="search-input" placeholder="ابحث بالكود أو الوصف..."></div>
+  <div class="logo-group">
+    <img class="logo-mark" src="https://lh3.googleusercontent.com/d/1VVBEfNVOISFw-4jTjMulEHp3o6vdlFk2" alt="logo">
+    <div class="logo-text"><p>للطباعة والتغليف والاعلان</p></div>
+  </div>
     <button class="cart-btn" id="cartBtn">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
       <span class="cart-badge hidden" id="cartCount">0</span>
     </button>
   </div>
-  <div class="mobile-search"><input id="searchMobile" class="search-input" placeholder="ابحث بالكود أو الوصف..."></div>
 </header>
 
 <main id="main">
@@ -708,9 +702,6 @@ function closeModal() {
   }
 }
 
-function onSearch(val) { searchTerm = val; renderProducts(); }
-document.getElementById('searchDesktop').addEventListener('input', function(e) { onSearch(e.target.value); });
-document.getElementById('searchMobile').addEventListener('input', function(e) { onSearch(e.target.value); document.getElementById('searchDesktop').value = e.target.value; });
 
 document.getElementById('cartBtn').addEventListener('click', function() {
   document.getElementById('cartDrawer').style.display = 'block';
