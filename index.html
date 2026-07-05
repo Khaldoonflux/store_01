@@ -134,7 +134,6 @@
   .modal-body { padding: 24px; }
   .modal-top-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
   .modal-code { font-size: 22px; font-weight: 700; }
-  .modal-size { font-size: 14px; color: var(--text-sub); margin-top: 2px; }
   .modal-discount-line { font-size: 15px; color: #ff8c00; font-weight: 800; text-align: center; margin-bottom: 12px; }
   .modal-price { font-size: 22px; font-weight: 700; color: var(--gold); white-space: nowrap; }
   .modal-desc { font-size: 14px; color: var(--text-sub); line-height: 1.8; margin-bottom: 16px; }
@@ -200,7 +199,6 @@
     .modal-close { font-size: 22px; }
     .modal-nav { font-size: 24px; }
     .modal-code { font-size: 24px; }
-    .modal-size { font-size: 16px; }
     .modal-discount-line { font-size: 16px; }
     .modal-price { font-size: 24px; }
     .modal-desc { font-size: 16px; }
@@ -398,7 +396,6 @@ function load() {
           products.push({
             code: (p.code || '').toString(),
             name: (p.name || '').toString(),
-            size: (p.size || '').toString(),
             price: Number(p.price) || 0,
             min: Number(p.minQty) || 1,
             img: p.image || '',
@@ -494,7 +491,7 @@ function addToCart(code) {
   for (var _i = 0; _i < products.length; _i++) { if (products[_i].code === code) { p = products[_i]; break; } }
   if (!p) return;
   cart.push({
-    code: p.code, name: p.name, size: p.size, price: p.price, min: p.min,
+    code: p.code, name: p.name, price: p.price, min: p.min,
     img: p.img, desc: p.desc, qty: p.min,
     price2k: p.price2k, price4k: p.price4k, price6k: p.price6k, price10k: p.price10k,
     categories: p.categories
@@ -555,7 +552,7 @@ function updateCartUI() {
               '<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5l-1-1h-5l-1 1H5v2h14V4h-3.5z"/></svg>' +
             '</button>' +
           '</div>' +
-          '<p class="cart-item-size">' + (item.name || item.size) + '</p>' +
+          '<p class="cart-item-size">' + item.name + '</p>' +
           '<div class="cart-item-bottom">' +
             '<div class="cart-discount-wrap">' + discountHtml + '</div>' +
             '<span class="cart-item-total">' + fmt(effectivePrice * item.qty) + ' د.ع</span>' +
@@ -601,7 +598,7 @@ function openModal(code) {
       var btnText = inCart ? 'في السلة' : 'أضف للسلة';
       var imgUrl = bustCache(p.img);
       var isDiscount = hasDiscountCategory(p);
-      var sizeOrDiscountHtml = isDiscount ? '' : '<div class="modal-size">مقاس ' + p.size + '</div>';
+      var sizeOrDiscountHtml = '';
       var discountLineHtml = isDiscount ? '<div class="modal-discount-line">خصم على الطلبات اكثر من 2000</div>' : '';
 
       html += '<div class="mobile-product-card" data-modal-code="' + safeCode + '">' +
@@ -635,7 +632,7 @@ function openModal(code) {
     var btnClass = inCart ? 'modal-add-btn in-cart' : 'modal-add-btn';
     var btnText = inCart ? 'في السلة' : 'أضف للسلة';
     var isDiscount = hasDiscountCategory(p);
-    var sizeOrDiscountHtml = isDiscount ? '' : '<div class="modal-size">مقاس ' + p.size + '</div>';
+    var sizeOrDiscountHtml = '';
     var discountLineHtml = isDiscount ? '<div class="modal-discount-line">خصم على الطلبات اكثر من 2000</div>' : '';
 
     // Normalize p.img (plain string) and p.slideImages (media objects) into one list.
@@ -729,7 +726,7 @@ document.getElementById('saveOrderBtn').addEventListener('click', function() {
     var effectivePrice = getEffectivePrice(i, i.qty);
     var standardEffective = getEffectivePrice(i, i.min);
     var discountPct = getDiscountPercent(standardEffective, effectivePrice);
-    return { code: i.code, name: i.name, qty: i.qty, price: effectivePrice, size: i.size, discountPct: discountPct };
+    return { code: i.code, name: i.name, qty: i.qty, price: effectivePrice, discountPct: discountPct };
   });
 
   fetch(scriptURL, {
