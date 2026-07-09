@@ -918,7 +918,7 @@ document.getElementById('saveOrderBtn').addEventListener('click', function() {
       });
       var total = cart.reduce(function(s, i) { var ep = getEffectivePrice(i, i.qty); return s + ep * i.qty; }, 0);
       msg += '\nالمجموع الكلي: ' + fmt(total) + ' د.ع'; msg += '\n\nالاسم: ' + name + '\nالهاتف: ' + phone;
-      var url = 'https://wa.me/9647831822251?text=' + encodeURIComponent(msg);
+      var url = 'https://wa.me/9647718631374?text=' + encodeURIComponent(msg);
       cart = []; saveCart(); updateCartUI(); renderProducts();
       if (isIphone()) {
         document.getElementById('orderMsg').textContent = 'تم حفظ الطلب';
