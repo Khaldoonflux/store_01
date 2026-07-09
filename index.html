@@ -162,11 +162,15 @@
     .mobile-product-card { background: var(--card); border: none; border-bottom: 1px solid var(--card-border); border-radius: 0; overflow: visible; backdrop-filter: blur(10px); padding: 0; margin: 0; }
     .mobile-product-card .card-body { padding: 14px; }
     .mobile-product-card .card-body .card-desc { font-size: 17px; }
-    .mobile-swipe-track { display: flex; width: 100%; aspect-ratio: 1 / 1; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; direction: ltr; position: relative; }
+    .mobile-swipe-wrap { position: relative; }
+    .mobile-swipe-track { display: flex; width: 100%; aspect-ratio: 1 / 1; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; scrollbar-width: none; direction: rtl; position: relative; }
     .mobile-swipe-track::-webkit-scrollbar { display: none; }
     .mobile-swipe-item { flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
     .mobile-swipe-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .mobile-swipe-item .modal-video-wrap { width: 100%; height: 100%; border-radius: 0; aspect-ratio: auto; }
+    .mobile-swipe-dots { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 6px; pointer-events: none; z-index: 3; }
+    .mobile-swipe-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.55); transition: width 0.2s, height 0.2s; }
+    .mobile-swipe-dot.active { width: 16px; height: 16px; }
     .modal-product-name { font-size: 16px; padding: 12px 14px 0; }
     .modal-discount-line { font-size: 14px; }
   }
@@ -363,8 +367,16 @@ function buildSwipeGalleryHtml(p) {
       itemsHtml += '<div class="mobile-swipe-item" data-type="image"><img src="' + bustCache(m.thumb) + '" onerror="this.src=\'https://via.placeholder.com/400/0e0e2c/c9a84c?text=No+Image\'"></div>';
     }
   }
+  var dotsHtml = '';
+  for (var d = 0; d < count; d++) {
+    dotsHtml += '<span class="mobile-swipe-dot"></span>';
+  }
+
   var safeId = 'swipe-' + p.code.replace(/[^a-zA-Z0-9_-]/g, '_');
-  return '<div class="mobile-swipe-track" id="' + safeId + '" data-count="' + count + '">' + itemsHtml + '</div>';
+  return '<div class="mobile-swipe-wrap">' +
+    '<div class="mobile-swipe-track" id="' + safeId + '" data-count="' + count + '">' + itemsHtml + '</div>' +
+    '<div class="mobile-swipe-dots">' + dotsHtml + '</div>' +
+  '</div>';
 }
 
 var _trackTimers = {};      // trackId -> { timeoutId, videoEl, handler }
@@ -384,7 +396,7 @@ function clearTrackTimer(trackId) {
 
 function nearestItemIndex(track, items) {
   var itemWidth = track.clientWidth || 1;
-  var idx = Math.round(track.scrollLeft / itemWidth);
+  var idx = Math.round(Math.abs(track.scrollLeft) / itemWidth);
   if (idx < 0) idx = 0;
   if (idx > items.length - 1) idx = items.length - 1;
   return idx;
@@ -393,7 +405,20 @@ function nearestItemIndex(track, items) {
 function goToItem(items, pos, instant) {
   var track = items[pos].parentElement;
   var itemWidth = track.clientWidth;
-  track.scrollTo({ left: pos * itemWidth, behavior: instant ? 'auto' : 'smooth' });
+  track.scrollTo({ left: -(pos * itemWidth), behavior: instant ? 'auto' : 'smooth' });
+}
+
+function updateDots(track, pos) {
+  var wrap = track.parentElement;
+  var dotsContainer = wrap ? wrap.querySelector('.mobile-swipe-dots') : null;
+  if (!dotsContainer) return;
+  var dots = dotsContainer.querySelectorAll('.mobile-swipe-dot');
+  if (dots.length <= 1) return; // only one circle, stays 8px
+  var count = parseInt(track.getAttribute('data-count'), 10) || 1;
+  var realIndex = pos - 1; // account for the cloned-last slide at slot 0
+  if (realIndex < 0) realIndex = 0;
+  if (realIndex > count - 1) realIndex = count - 1;
+  dots.forEach(function(d, i) { d.classList.toggle('active', i === realIndex); });
 }
 
 function scheduleFromPosition(track, items, pos) {
@@ -401,6 +426,8 @@ function scheduleFromPosition(track, items, pos) {
   _trackPos[track.id] = pos;
   var current = items[pos];
   if (!current) return;
+
+  updateDots(track, pos);
 
   // Pause any other video in this track so only the current slide plays.
   items.forEach(function(it) {
@@ -414,40 +441,10 @@ function scheduleFromPosition(track, items, pos) {
     var videoEl = current.querySelector('video');
     if (videoEl) {
       videoEl.currentTime = 0;
-      var advanced = false;
-      var handler = function() {
-        if (advanced) return;
-        advanced = true;
-        advanceTrack(track, items, pos);
-      };
-      var timeoutId = setTimeout(handler, 15000); // safety net if 'ended' never fires
-      videoEl.addEventListener('ended', function() { clearTimeout(timeoutId); handler(); }, { once: true });
+      videoEl.loop = true;
       var playPromise = videoEl.play();
       if (playPromise && playPromise.catch) playPromise.catch(function() {}); // ignore autoplay-block rejections
-      _trackTimers[track.id] = { timeoutId: timeoutId, videoEl: videoEl, handler: handler };
-      return;
     }
-  }
-
-  var timeoutId2 = setTimeout(function() { advanceTrack(track, items, pos); }, 2500);
-  _trackTimers[track.id] = { timeoutId: timeoutId2 };
-}
-
-function advanceTrack(track, items, fromPos) {
-  var count = parseInt(track.getAttribute('data-count'), 10) || 1;
-  var total = items.length;
-  var nextPos = fromPos + 1;
-  if (nextPos >= total) nextPos = total - 1;
-  goToItem(items, nextPos, false);
-
-  if (count > 1 && nextPos === total - 1) {
-    // Landed on the cloned-first slide; let the smooth scroll finish, then snap invisibly to the real first slide.
-    setTimeout(function() {
-      goToItem(items, 1, true);
-      scheduleFromPosition(track, items, 1);
-    }, 450);
-  } else {
-    scheduleFromPosition(track, items, nextPos);
   }
 }
 
