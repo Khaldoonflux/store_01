@@ -168,8 +168,8 @@
     .mobile-swipe-item { flex: 0 0 100%; width: 100%; height: 100%; scroll-snap-align: start; scroll-snap-stop: always; }
     .mobile-swipe-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
     .mobile-swipe-item .modal-video-wrap { width: 100%; height: 100%; border-radius: 0; aspect-ratio: auto; }
-    .mobile-swipe-dots { position: absolute; bottom: 8px; left: 0; right: 0; display: flex; justify-content: center; align-items: center; gap: 6px; pointer-events: none; z-index: 3; }
-    .mobile-swipe-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.85); box-shadow: 0 0 0 1px rgba(0,0,0,0.55); transition: width 0.2s, height 0.2s; }
+    .mobile-swipe-dots { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; justify-content: center; align-items: center; gap: 6px; pointer-events: none; z-index: 3; background: rgba(0,0,0,0.4); border-radius: 999px; padding: 5px 12px; min-width: 92px; box-sizing: border-box; }
+    .mobile-swipe-dot { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.85); transition: width 0.2s, height 0.2s; }
     .mobile-swipe-dot.active { width: 16px; height: 16px; }
     .modal-product-name { font-size: 16px; padding: 12px 14px 0; }
     .modal-discount-line { font-size: 14px; }
