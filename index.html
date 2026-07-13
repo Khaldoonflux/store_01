@@ -344,11 +344,21 @@ window.addEventListener('popstate', function(e) {
 });
 
 // media = { type: 'image'|'video', thumb: url, embedUrl: url|null }
+function getYouTubeEmbedUrl(url) {
+  if (!url) return null;
+  var match = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/);
+  return match ? 'https://www.youtube.com/embed/' + match[1] + '?autoplay=1&mute=1&playsinline=1' : null;
+}
 // Builds a swipeable (scroll-snap) gallery for a product: primary image + slide images/videos, no thumbnails.
 function buildSwipeGalleryHtml(p) {
   var allMedia = [{ type: 'image', thumb: p.img, embedUrl: null }]
     .concat(p.slideImages || [])
-    .filter(function(m) { return m && m.thumb && /^https?:\/\/.+/i.test(m.thumb.trim()); });
+    .filter(function(m) { return m && m.thumb && /^https?:\/\/.+/i.test(m.thumb.trim()); })
+    .map(function(m) {
+      var ytLink = getYouTubeEmbedUrl(m.embedUrl) || getYouTubeEmbedUrl(m.thumb);
+      if (ytLink) return { type: 'video', thumb: m.thumb, embedUrl: m.embedUrl || m.thumb };
+      return m;
+    });
   if (allMedia.length === 0) allMedia = [{ type: 'image', thumb: p.img, embedUrl: null }];
 
   var count = allMedia.length;
@@ -362,8 +372,12 @@ function buildSwipeGalleryHtml(p) {
   for (var i = 0; i < renderList.length; i++) {
     var m = renderList[i];
     if (m.type === 'video' && m.embedUrl) {
+      var ytUrl = getYouTubeEmbedUrl(m.embedUrl);
+      var videoInner = ytUrl
+        ? '<iframe class="modal-main-video" src="' + ytUrl + '" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>'
+        : '<video class="modal-main-video" src="' + m.embedUrl + '" poster="' + m.thumb + '" muted playsinline webkit-playsinline preload="auto"></video>';
       itemsHtml += '<div class="mobile-swipe-item" data-type="video">' +
-        '<div class="modal-video-wrap"><video class="modal-main-video" src="' + m.embedUrl + '" poster="' + m.thumb + '" muted playsinline webkit-playsinline preload="auto"></video></div>' +
+        '<div class="modal-video-wrap">' + videoInner + '</div>' +
       '</div>';
     } else {
       itemsHtml += '<div class="mobile-swipe-item" data-type="image"><img src="' + bustCache(m.thumb) + '" onerror="this.src=\'https://via.placeholder.com/400/0e0e2c/c9a84c?text=No+Image\'"></div>';
@@ -523,9 +537,11 @@ function setupMobileSlideshowObserver() {
 }
 
 function buildVideoHtml(media) {
-  return '<div class="modal-video-wrap">' +
-    '<video class="modal-main-video" src="' + media.embedUrl + '" poster="' + media.thumb + '" autoplay muted loop playsinline webkit-playsinline preload="auto"></video>' +
-  '</div>';
+  var ytUrl = getYouTubeEmbedUrl(media.embedUrl);
+  var videoInner = ytUrl
+    ? '<iframe class="modal-main-video" src="' + ytUrl + '" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>'
+    : '<video class="modal-main-video" src="' + media.embedUrl + '" poster="' + media.thumb + '" autoplay muted loop playsinline webkit-playsinline preload="auto"></video>';
+  return '<div class="modal-video-wrap">' + videoInner + '</div>';
 }
 
 function switchMainMedia(thumbEl, media) {
@@ -804,7 +820,12 @@ function openModal(code) {
     // Normalize p.img (plain string) and p.slideImages (media objects) into one list.
     var allMedia = [{ type: 'image', thumb: p.img, embedUrl: null }]
       .concat(p.slideImages || [])
-      .filter(function(m) { return m && m.thumb && /^https?:\/\/.+/i.test(m.thumb.trim()); });
+      .filter(function(m) { return m && m.thumb && /^https?:\/\/.+/i.test(m.thumb.trim()); })
+      .map(function(m) {
+        var ytLink = getYouTubeEmbedUrl(m.embedUrl) || getYouTubeEmbedUrl(m.thumb);
+        if (ytLink) return { type: 'video', thumb: m.thumb, embedUrl: m.embedUrl || m.thumb };
+        return m;
+      });
     if (allMedia.length === 0) allMedia = [{ type: 'image', thumb: p.img, embedUrl: null }];
 
     window._modalMedia = allMedia;
